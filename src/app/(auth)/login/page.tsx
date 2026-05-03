@@ -98,10 +98,6 @@ export default function HalamanMasuk() {
             </div>
           </form>
 
-          <div className="d-flex justify-content-between small px-1">
-            <span className="text-success cursor-pointer fw-medium" style={{ textDecoration: 'none' }}>Lupa Password</span>
-            <span className="text-success cursor-pointer fw-medium" style={{ textDecoration: 'none' }}>Daftar</span>
-          </div>
         </div>
       </div>
     </div>
