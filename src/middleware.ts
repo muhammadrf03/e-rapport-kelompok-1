@@ -9,7 +9,6 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  // Inisialisasi Supabase Client untuk Middleware menggunakan @supabase/ssr
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -19,7 +18,7 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           );
           response = NextResponse.next({
@@ -33,34 +32,43 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Ambil data user session yang aktif
+  // Ambil data user session
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const isProtectedRoute = 
-    request.nextUrl.pathname.startsWith('/guru') || 
-    request.nextUrl.pathname.startsWith('/santri');
+  const pathname = request.nextUrl.pathname;
 
-  // Jika tidak ada user login dan mencoba mengakses rute terproteksi, redirect ke login
+  // 1. REDIRECT LANDING PAGE KE LOGIN
+  // Jika user buka "/" langsung lempar ke "/login"
+  if (pathname === '/') {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // 2. PROTEKSI RUTE (GURU & SANTRI)
+  const isProtectedRoute = 
+    pathname.startsWith('/guru') || 
+    pathname.startsWith('/santri');
+
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
+  // 3. (Opsional) REDIRECT JIKA SUDAH LOGIN
+  // Jika user sudah login dan mencoba akses /login, arahkan ke dashboard guru
+  if (user && pathname === '/login') {
+    return NextResponse.redirect(new URL('/guru', request.url));
+  }
+
   return response;
 }
 
-// Konfigurasi Matcher agar middleware hanya berjalan pada rute tertentu
 export const config = {
   matcher: [
     /*
-     * Match semua request paths kecuali yang berawalan:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder assets
+     * Match semua request paths kecuali file statis dan favicon
      */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
