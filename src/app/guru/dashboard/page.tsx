@@ -1,16 +1,22 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useOptimistic, useTransition } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import Link from "next/link";
+import { z } from "zod";
 
-// Definisikan tipe untuk state agar tidak ada error property unknown
-type DashboardStats = {
-  totalSantri: number;
-  totalMapel: number;
-  totalNilai: number;
-  kategoriMapel: { nama: string; jumlah: number }[];
-  latestNilai: any[]; // Untuk menampilkan daftar nilai terbaru
-};
+// --- Zod Schema untuk Validasi Data Stats ---
+const statsSchema = z.object({
+  totalSantri: z.number(),
+  totalMapel: z.number(),
+  totalNilai: z.number(),
+  kategoriMapel: z.array(z.object({
+    nama: z.string(),
+    jumlah: z.number()
+  })),
+  latestNilai: z.array(z.any())
+});
+
+type DashboardStats = z.infer<typeof statsSchema>;
 
 export default function DashboardPage() {
   const supabase = createBrowserClient(
@@ -18,6 +24,8 @@ export default function DashboardPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
   
+  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
     totalSantri: 0,
     totalMapel: 0,
@@ -25,13 +33,17 @@ export default function DashboardPage() {
     kategoriMapel: [],
     latestNilai: []
   });
-  const [loading, setLoading] = useState(true);
+
+  // Optimistic UI untuk Daftar Nilai
+  const [optimisticLatestNilai, addOptimisticNilai] = useOptimistic(
+    stats.latestNilai,
+    (state, idToRemove) => state.filter(n => n.id !== idToRemove)
+  );
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       
-      // 1. Ambil counts
       const { count: santriCount } = await supabase
         .from('santri')
         .select('*', { count: 'exact', head: true });
@@ -44,7 +56,6 @@ export default function DashboardPage() {
         .from('nilai')
         .select('*', { count: 'exact', head: true });
 
-      // 2. Ambil data kategori untuk progress bar
       const { data: mapelData } = await supabase
         .from('mapel')
         .select('kategori');
@@ -59,7 +70,6 @@ export default function DashboardPage() {
         jumlah: kelompok[key]
       })) : [];
 
-      // 3. Ambil 5 nilai terbaru untuk ditampilkan di card kiri (agar tidak kosong)
       const { data: nilaiTerbaru } = await supabase
         .from('nilai')
         .select(`
@@ -72,19 +82,33 @@ export default function DashboardPage() {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      setStats({
+      const rawData = {
         totalSantri: santriCount || 0,
         totalMapel: mapelCount || 0,
         totalNilai: nilaiCount || 0,
         kategoriMapel: formatKategori,
         latestNilai: nilaiTerbaru || []
-      });
+      };
+
+      const validatedData = statsSchema.safeParse(rawData);
+      if (validatedData.success) {
+        setStats(validatedData.data);
+      } else {
+        setStats(rawData); 
+      }
       
       setLoading(false);
     };
 
     fetchData();
   }, [supabase]);
+
+  // Data untuk looping kartu stats agar tidak duplikasi kode manual
+  const statsCards = [
+    { label: "Total Santri", val: stats.totalSantri, icon: "bi-people", link: "/guru/data-santri", color: "#198754" },
+    { label: "Mata Pelajaran", val: stats.totalMapel, icon: "bi-book", link: "/guru/mata-pelajaran", color: "#144520" },
+    { label: "Total Nilai", val: stats.totalNilai, icon: "bi-graph-up-arrow", link: "/guru/input-nilai", color: "#198754" }
+  ];
 
   if (loading) {
     return (
@@ -95,53 +119,82 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container-fluid p-0">
+    <div className="container-fluid p-0 animate__animated animate__fadeIn">
+      {/* CSS INTERNAL UNTUK MARQUEE */}
+      <style jsx>{`
+        .marquee-container {
+          overflow: hidden;
+          white-space: nowrap;
+          width: 100%;
+          padding: 15px 0;
+        }
+        .marquee-content {
+          display: inline-flex;
+          gap: 24px;
+          animation: scroll-left 25s linear infinite;
+        }
+        .marquee-container:hover .marquee-content {
+          animation-play-state: paused;
+        }
+        @keyframes scroll-left {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .card-item {
+          min-width: 320px;
+        }
+      `}</style>
+
       <header className="mb-4">
         <h2 className="fw-bold mb-0 text-dark">Dashboard Guru</h2>
         <p className="text-secondary small">Selamat datang kembali! Berikut ringkasan data E-Raport</p>
       </header>
 
-      {/* STATS CARDS */}
-      <div className="row g-4 mb-4">
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
-            <div className="d-flex justify-content-between align-items-start">
-              <div className="bg-success text-white rounded-3 d-flex align-items-center justify-content-center mb-3" style={{ width: '45px', height: '45px' }}>
-                <i className="bi bi-people fs-4"></i>
+      {/* STATS CARDS DENGAN ANIMASI BERGERAK */}
+      <div className="marquee-container mb-4">
+        <div className="marquee-content">
+          {/* Loop Pertama */}
+          {statsCards.map((item, idx) => (
+            <div className="card-item" key={idx}>
+              <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div className="text-white rounded-3 d-flex align-items-center justify-content-center mb-3" 
+                       style={{ width: '45px', height: '45px', backgroundColor: item.color }}>
+                    <i className={`bi ${item.icon} fs-4`}></i>
+                  </div>
+                  <span className="badge rounded-pill bg-light text-secondary border px-3 py-2" style={{ fontSize: '10px' }}>AKTIF</span>
+                </div>
+                <div className="text-secondary small fw-bold text-uppercase mb-1">{item.label}</div>
+                <h1 className="fw-bold mb-3">{item.val}</h1>
+                <Link href={item.link} className="text-success fw-bold text-decoration-none small d-block">
+                   Detail <i className="bi bi-arrow-right ms-1"></i>
+                </Link>
               </div>
-              <span className="badge rounded-pill bg-light text-secondary border px-3 py-2" style={{ fontSize: '10px' }}>AKTIF</span>
             </div>
-            <div className="text-secondary small fw-bold text-uppercase mb-1">Total Santri</div>
-            <h1 className="fw-bold mb-3">{stats.totalSantri}</h1>
-            <Link href="/guru/data-santri" className="text-success fw-bold text-decoration-none small text-center d-block">Kelola Santri <i className="bi bi-arrow-right ms-1"></i></Link>
-          </div>
-        </div>
-
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
-             <div className="rounded-3 d-flex align-items-center justify-content-center mb-3" style={{ width: '45px', height: '45px', backgroundColor: '#144520', color: 'white' }}>
-                <i className="bi bi-book fs-4"></i>
+          ))}
+          {/* Loop Kedua (Duplikasi untuk efek tanpa putus) */}
+          {statsCards.map((item, idx) => (
+            <div className="card-item" key={`dup-${idx}`}>
+              <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
+                <div className="d-flex justify-content-between align-items-start">
+                  <div className="text-white rounded-3 d-flex align-items-center justify-content-center mb-3" 
+                       style={{ width: '45px', height: '45px', backgroundColor: item.color }}>
+                    <i className={`bi ${item.icon} fs-4`}></i>
+                  </div>
+                  <span className="badge rounded-pill bg-light text-secondary border px-3 py-2" style={{ fontSize: '10px' }}>AKTIF</span>
+                </div>
+                <div className="text-secondary small fw-bold text-uppercase mb-1">{item.label}</div>
+                <h1 className="fw-bold mb-3">{item.val}</h1>
+                <Link href={item.link} className="text-success fw-bold text-decoration-none small d-block">
+                   Detail <i className="bi bi-arrow-right ms-1"></i>
+                </Link>
               </div>
-            <div className="text-secondary small fw-bold text-uppercase mb-1">Mata Pelajaran</div>
-            <h1 className="fw-bold mb-3">{stats.totalMapel}</h1>
-            <Link href="/guru/mata-pelajaran" className="text-success fw-bold text-decoration-none small text-center d-block">Kelola Mapel <i className="bi bi-arrow-right ms-1"></i></Link>
-          </div>
-        </div>
-
-        <div className="col-md-4">
-          <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
-            <div className="bg-success text-white rounded-3 d-flex align-items-center justify-content-center mb-3" style={{ width: '45px', height: '45px' }}>
-                <i className="bi bi-graph-up-arrow fs-4"></i>
             </div>
-            <div className="text-secondary small fw-bold text-uppercase mb-1">Total Nilai Terinput</div>
-            <h1 className="fw-bold mb-3">{stats.totalNilai}</h1>
-            <Link href="/guru/input-nilai" className="text-success fw-bold text-decoration-none small text-center d-block">Input Nilai <i className="bi bi-arrow-right ms-1"></i></Link>
-          </div>
+          ))}
         </div>
       </div>
 
       <div className="row g-4 mb-4">
-        {/* NILAI TERBARU SECTION */}
         <div className="col-md-7">
           <div className="card border-0 shadow-sm rounded-4 p-4" style={{ minHeight: '400px' }}>
             <div className="d-flex justify-content-between align-items-center mb-4">
@@ -149,7 +202,7 @@ export default function DashboardPage() {
                 <h5 className="fw-bold mb-0">Nilai Terbaru</h5>
                 <small className="text-muted">Ringkasan data nilai terakhir</small>
               </div>
-              <Link href="/guru/input-nilai" className="btn btn-success btn-sm rounded-3 px-3 py-2 text-decoration-none" style={{ backgroundColor: '#1a5d2b', border: 'none' }}>
+              <Link href="/guru/input-nilai" className="btn btn-success btn-sm rounded-3 px-3 py-2" style={{ backgroundColor: '#1a5d2b', border: 'none' }}>
                   <i className="bi bi-plus-lg me-2"></i> Input Nilai
               </Link>
             </div>
@@ -158,10 +211,7 @@ export default function DashboardPage() {
               {stats.totalNilai === 0 ? (
                 <div className="text-center">
                   <i className="bi bi-pencil-square text-light display-1 d-block mb-3"></i>
-                  <h6 className="fw-bold text-secondary">Belum ada nilai terinput untuk santri</h6>
-                  <Link href="/guru/input-nilai" className="btn btn-success rounded-3 px-4 mt-3" style={{ backgroundColor: '#4caf50', border: 'none' }}>
-                    + Input Nilai Sekarang
-                  </Link>
+                  <h6 className="fw-bold text-secondary">Belum ada nilai terinput</h6>
                 </div>
               ) : (
                 <div className="table-responsive">
@@ -174,7 +224,7 @@ export default function DashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {stats.latestNilai.map((n) => (
+                      {optimisticLatestNilai.map((n) => (
                         <tr key={n.id}>
                           <td className="small fw-bold">{n.santri?.nama_lengkap}</td>
                           <td className="small text-muted">{n.mapel?.nama_mapel}</td>
@@ -189,7 +239,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* KATEGORI SECTION */}
         <div className="col-md-5">
           <div className="card border-0 shadow-sm rounded-4 p-4 h-100">
             <h5 className="fw-bold mb-1">Kategori Mata Pelajaran</h5>
@@ -210,21 +259,20 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
-            )) : <p className="text-center text-muted small py-4">Belum ada kategori ditemukan</p>}
+            )) : <p className="text-center text-muted small py-4">Belum ada data</p>}
             
-            <Link href="/guru/mata-pelajaran" className="btn btn-outline-light text-secondary border w-100 rounded-3 mt-auto py-2 text-decoration-none text-center d-block">Kelola Mata Pelajaran</Link>
+            <Link href="/guru/mata-pelajaran" className="btn btn-outline-light text-secondary border w-100 rounded-3 mt-auto py-2">Kelola Mata Pelajaran</Link>
           </div>
         </div>
       </div>
 
-      {/* AKSI CEPAT BANNER */}
       <div className="card border-0 rounded-4 p-4 text-white overflow-hidden position-relative shadow" style={{ backgroundColor: '#3d8c52' }}>
         <div className="position-relative z-1">
           <h4 className="fw-bold mb-1">Aksi Cepat</h4>
           <p className="small opacity-75 mb-4">Pilih aksi untuk memulai</p>
           <div className="d-flex gap-3">
-            <Link href="/guru/data-santri" className="btn btn-light rounded-3 fw-bold px-4 py-2 text-dark text-decoration-none small"><i className="bi bi-people me-2"></i> Kelola Santri</Link>
-            <Link href="/guru/input-nilai" className="btn btn-outline-light border-2 rounded-3 fw-bold px-4 py-2 text-decoration-none small"><i className="bi bi-pencil-square me-2"></i> Input Nilai</Link>
+            <Link href="/guru/data-santri" className="btn btn-light rounded-3 fw-bold px-4 py-2 text-dark text-decoration-none small">Kelola Santri</Link>
+            <Link href="/guru/input-nilai" className="btn btn-outline-light border-2 rounded-3 fw-bold px-4 py-2 text-decoration-none small">Input Nilai</Link>
           </div>
         </div>
         <i className="bi bi-graph-up-arrow position-absolute" style={{ right: '-20px', bottom: '-40px', fontSize: '180px', opacity: '0.1', transform: 'rotate(15deg)' }}></i>
