@@ -12,7 +12,7 @@ export default function SantriLayout({ children }: { children: React.ReactNode }
   const menu = [
     { name: "Dashboard", path: "/santri/dashboard", icon: "bi-grid" },
     { name: "Nilai", path: "/santri/nilai", icon: "bi-people" },
-    { name: "Raport", path: "/santri/raport", icon: "bi-book" },
+    { name: "Raport", path: "/santri/raport-santri", icon: "bi-book" },
   ];
 
   const logout = async () => {
