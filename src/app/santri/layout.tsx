@@ -8,7 +8,7 @@ export default function SantriLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const router = useRouter();
 
-  // Menu disesuaikan untuk Santri sesuai gambar
+  // Menu disesuaikan untuk Santri
   const menu = [
     { name: "Dashboard", path: "/santri/dashboard", icon: "bi-grid" },
     { name: "Nilai", path: "/santri/nilai", icon: "bi-people" },
@@ -16,7 +16,7 @@ export default function SantriLayout({ children }: { children: React.ReactNode }
   ];
 
   const logout = async () => {
-    if(confirm("Keluar dari aplikasi?")) {
+    if (confirm("Keluar dari aplikasi?")) {
       await supabase.auth.signOut();
       router.push("/login");
     }
@@ -24,6 +24,22 @@ export default function SantriLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="container-fluid p-0">
+      {/* CSS Animasi Internal agar tidak perlu buka global.css */}
+      <style>{`
+        @keyframes subtle-float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-5px); }
+        }
+        .icon-santri-animasi {
+          display: inline-block;
+          animation: subtle-float 3s ease-in-out infinite;
+          font-size: 24px;
+        }
+        .transition-all {
+          transition: all 0.3s ease;
+        }
+      `}</style>
+
       <div className="d-flex">
         {/* SIDEBAR */}
         <nav className="text-white min-vh-100 d-flex flex-column position-fixed" 
@@ -34,11 +50,12 @@ export default function SantriLayout({ children }: { children: React.ReactNode }
             <div className="d-flex align-items-center gap-3">
               <div className="rounded-4 d-flex align-items-center justify-content-center fw-bold border border-white border-opacity-25" 
                    style={{ width: '56px', height: '56px', backgroundColor: '#567c55' }}>
-                GR
+                {/* Ikon Toga Menggantikan "GR" */}
+                <span className="icon-santri-animasi">🎓</span>
               </div>
               <div>
                 <div className="fw-bold mb-0" style={{ fontSize: '18px', letterSpacing: '0.5px' }}>E-Raport</div>
-                <div className="opacity-75" style={{ fontSize: '13px' }}>Murid</div>
+                <div className="opacity-75" style={{ fontSize: '13px' }}>Santri Digital</div>
               </div>
             </div>
           </div>
@@ -68,7 +85,7 @@ export default function SantriLayout({ children }: { children: React.ReactNode }
           <div className="p-4">
             <hr className="mb-4 border-white opacity-25" />
             <button onClick={logout} 
-                    className="btn text-white w-100 text-start d-flex align-items-center gap-3 px-4 opacity-75 border-0 bg-transparent shadow-none">
+                    className="btn text-white w-100 text-start d-flex align-items-center gap-3 px-4 opacity-75 border-0 bg-transparent shadow-none transition-all">
               <i className="bi bi-box-arrow-left fs-5"></i>
               <span style={{ fontSize: '16px' }}>Keluar</span>
             </button>

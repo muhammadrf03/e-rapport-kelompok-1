@@ -12,7 +12,6 @@ export default function HalamanMasuk() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        // Mengarah ke file callback yang kita buat di atas
         redirectTo: `${window.location.origin}/auth/callback`,
         queryParams: {
           access_type: 'offline',
@@ -36,7 +35,6 @@ export default function HalamanMasuk() {
     if (error) {
       alert("Gagal masuk: " + error.message);
     } else {
-      // Redirect langsung karena ini proses client-side
       window.location.href = "/santri/dashboard";
     }
     setSedangMemproses(false);
@@ -44,11 +42,30 @@ export default function HalamanMasuk() {
 
   return (
     <div className="vh-100 d-flex align-items-center justify-content-center" style={{ backgroundColor: "#e8f5e9" }}>
+      {/* CSS Animasi Langsung di Sini */}
+      <style>{`
+        @keyframes floating {
+          0% { transform: translateY(0px) rotate(0deg); }
+          50% { transform: translateY(-10px) rotate(5deg); }
+          100% { transform: translateY(0px) rotate(0deg); }
+        }
+        .toga-bounce {
+          display: inline-block;
+          animation: floating 3s ease-in-out infinite;
+          font-size: 2.5rem;
+        }
+      `}</style>
+
       <div className="card border-0 shadow-sm p-4" style={{ width: "400px", borderRadius: "20px" }}>
         <div className="card-body">
           <div className="text-center mb-3">
-             <div className="bg-success text-white d-inline-block px-3 py-2 rounded-3 fw-bold fs-4">LG</div>
+             <div className="bg-success text-white d-inline-flex align-items-center justify-content-center rounded-circle" 
+                  style={{ width: "80px", height: "80px" }}>
+               {/* Ikon Toga Bergerak */}
+               <span className="toga-bounce">🎓</span>
+             </div>
           </div>
+          
           <h2 className="text-center fw-bold mb-0">Login</h2>
           <p className="text-center text-muted small mb-4">E-Raport Pondok Pesantren</p>
 
@@ -78,21 +95,31 @@ export default function HalamanMasuk() {
               />
             </div>
 
-            <div className="d-flex gap-2 mb-4">
+            <div className="d-grid gap-2 mb-2">
               <button 
                 type="submit" 
-                className="btn btn-success flex-fill py-2 fw-bold" 
+                className="btn btn-success py-2 fw-bold" 
                 style={{ borderRadius: "10px", backgroundColor: "#4CAF50" }}
                 disabled={sedangMemproses}
               >
                 {sedangMemproses ? "..." : "Login Murid"}
               </button>
+            </div>
+            
+            <div className="text-center mb-2">
+              <span className="text-muted small">atau</span>
+            </div>
+
+            <div className="d-grid">
               <button 
                 type="button" 
                 onClick={masukLewatGoogle} 
-                className="btn btn-success flex-fill py-2 fw-bold"
-                style={{ borderRadius: "10px", backgroundColor: "#4CAF50" }}
+                className="btn btn-outline-success py-2 fw-bold"
+                style={{ borderRadius: "10px" }}
               >
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" 
+                     alt="Google" 
+                     style={{ width: "18px", marginRight: "8px" }} />
                 Login Guru
               </button>
             </div>
